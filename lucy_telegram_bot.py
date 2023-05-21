@@ -12,6 +12,7 @@ from typing import Final
 from telegram import Update, InputFile
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import soundfile as sf
+import soundfile as sf
 
 
 load_dotenv(find_dotenv())
@@ -48,10 +49,7 @@ chatgpt_chain = LLMChain(
 
 
 def get_response_from_ai(human_input):
-    print("history", ConversationBufferWindowMemory())
-
     output = chatgpt_chain.predict(human_input=human_input)
-
     return output
 
 
@@ -80,12 +78,31 @@ def get_voice_message(message):
         print('error in getting voice ')
 
 
+def download_file(url, save_path):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(save_path, 'wb') as file:
+            file.write(response.content)
+        print(f"File downloaded and saved at: {save_path}")
+    else:
+        print("Failed to download the file.")
+
+
+def convert_ogg_to_webm(ogg_file_path, mp3_file_path):
+    # Read the OGG file
+    ogg_data, sample_rate = sf.read(ogg_file_path)
+
+    # Write the data to WebM file
+    sf.write(mp3_file_path, ogg_data, sample_rate, format='MP3')
+
 # ------------------------------------------------------------
 # ------------------------------------------------------------
 
 # TG bot
 
 # Commands
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hi! I'm Lucy")
 
@@ -125,20 +142,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_voice(chat_id=chat_id, voice=audio_file)
 
 
-# async def handle_voice_message(update: Update, context):
-#     chat_id = update.effective_chat.id
-#     voice = update.message.voice
+async def handle_voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    voice = update.message.voice
+    message_type: str = update.message.chat.type
 
-#     # Download the voice message
-#     voice_file = context.bot.get_file(voice.file_id)
-#     voice_file.download('received_voice.ogg')
+    if message_type == 'private':
+        # Download the voice message 'ogg file'
+        voice_file = await context.bot.get_file(voice.file_id)
+        voice_url = voice_file.file_path
+        save_path = "received_voice.ogg"
+        download_file(voice_url, save_path)
 
-#     # transcript and get voice message from elevenlabs
-#     audio_file = open("received_voice.ogg", "rb")
-#     transcript = openai.Audio.transcribe("whisper-1", audio_file)
-#     voice_file = handle_responses(transcript)
-#     print('Bot handle voice message:', transcript)
-#     context.bot.send_voice(chat_id=chat_id, voice=voice_file)
+        # convert ogg to webm
+        ogg_file_path = save_path
+        mp3_file_path = "received_voice.mp3"
+        convert_ogg_to_webm(ogg_file_path, mp3_file_path)
+
+        # transcript and get voice message from elevenlabs
+        audio_file = open("received_voice.mp3", "rb")
+        transcript = openai.Audio.transcribe("whisper-1", audio_file).text
+        audio_file = handle_responses(transcript)
+        await context.bot.send_voice(chat_id=chat_id, voice=audio_file)
+    else:
+        return
 
 
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,7 +182,7 @@ if __name__ == '__main__':
 
     # Messages
     app.add_handler(MessageHandler(filters.TEXT, handle_message))
-    # app.add_handler(MessageHandler(filters.VOICE, handle_voice_message))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice_message))
 
     # Errors
     app.add_error_handler(error)

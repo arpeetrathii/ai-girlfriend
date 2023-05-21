@@ -9,8 +9,9 @@ import io
 import pygame
 import openai
 from typing import Final
-from telegram import Update
+from telegram import Update, InputFile
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import soundfile as sf
 
 
 load_dotenv(find_dotenv())
@@ -73,12 +74,14 @@ def get_voice_message(message):
     response = requests.post(
         'https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM?optimize_streaming_latency=0', json=payload, headers=headers)
     if response.status_code == 200 and response.content:
-        audio_data = io.BytesIO(response.content)
-        pygame.mixer.init()
-        pygame.mixer.music.load(audio_data)
-        pygame.mixer.music.play()
-        return response.content
+        with open("voice_message.mp3", "wb") as file:
+            file.write(response.content)
+    else:
+        print('error in getting voice ')
 
+
+# ------------------------------------------------------------
+# ------------------------------------------------------------
 
 # TG bot
 
@@ -93,12 +96,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Responses
 def handle_responses(text: str) -> str:
-    if 'hello' in text:
-        return "yo you hello"
-    if 'i love you' in text:
-        return "i want to go out with you tonight babe"
 
-    return "go go go"
+    response = get_response_from_ai(text)
+    print('handle response: ', response)
+    get_voice_message(response)
+    audio_file = open("voice_message.mp3", "rb")
+    return audio_file
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -110,14 +113,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if message_type == 'group':
         if BOT_USERNAME in text:
             new_text = text.replace(BOT_USERNAME, '').strip()
-            response: str = handle_responses(new_text)
+            chat_id = update.message.chat.id
+            audio_file = handle_responses(new_text)
         else:
             return
     else:
-        response: str = handle_responses(text)
+        audio_file = handle_responses(text)
+        chat_id = update.message.chat.id
 
-    print('Bot:', response)
-    await update.message.reply_text(response)
+    # await context.bot.send_voice(chat_id=chat_id, voice=voice_message)
+    await context.bot.send_voice(chat_id=chat_id, voice=audio_file)
+
+
+# async def handle_voice_message(update: Update, context):
+#     chat_id = update.effective_chat.id
+#     voice = update.message.voice
+
+#     # Download the voice message
+#     voice_file = context.bot.get_file(voice.file_id)
+#     voice_file.download('received_voice.ogg')
+
+#     # transcript and get voice message from elevenlabs
+#     audio_file = open("received_voice.ogg", "rb")
+#     transcript = openai.Audio.transcribe("whisper-1", audio_file)
+#     voice_file = handle_responses(transcript)
+#     print('Bot handle voice message:', transcript)
+#     context.bot.send_voice(chat_id=chat_id, voice=voice_file)
 
 
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -134,6 +155,7 @@ if __name__ == '__main__':
 
     # Messages
     app.add_handler(MessageHandler(filters.TEXT, handle_message))
+    # app.add_handler(MessageHandler(filters.VOICE, handle_voice_message))
 
     # Errors
     app.add_error_handler(error)

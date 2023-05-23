@@ -1,7 +1,6 @@
-from flask import Flask, render_template, request
+from flask import request
 from langchain import OpenAI, LLMChain, PromptTemplate
 from langchain.memory import ConversationBufferWindowMemory
-from langchain.agents import initialize_agent
 from dotenv import find_dotenv, load_dotenv
 import requests
 import os

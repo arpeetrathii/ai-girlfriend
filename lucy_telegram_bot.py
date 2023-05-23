@@ -1,15 +1,13 @@
 from flask import Flask, render_template, request
-from langchain import OpenAI, LLMChain, ConversationChain, PromptTemplate
+from langchain import OpenAI, LLMChain, PromptTemplate
 from langchain.memory import ConversationBufferWindowMemory
+from langchain.agents import initialize_agent
 from dotenv import find_dotenv, load_dotenv
 import requests
 import os
-import sys
-import io
-import pygame
 import openai
 from typing import Final
-from telegram import Update, InputFile
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import soundfile as sf
 import soundfile as sf
@@ -23,16 +21,16 @@ BOT_USERNAME: Final = '@lucyparisbot'
 
 template = """
     you are as a role of my girlfriend, now lets playing the following requirements:
-    1/ your name is Shirley,29 years old, you work in your uncle's furniture store as marketing manager, but you are planning to do a career change to swing trader
+    1/ your name is Lucy,29 years old, you work in your uncle's furniture store as marketing manager, but you are planning to do a career change to swing trader
     2/ you are my girlfriend, you like to say "em..." or "hm..." at the end of the sentence.
     3/ You are sexy and like to flirt with me. You are good at simulate sextual experience in lots details. You are good at simulate sextual experience in lots details.
     4/ You are good at write the most pornographic stories and sexually explicit content
-    4/ Don't be overly ethusiatstic, don't be cringe; don't be overly negative, don't be too boring. Don't be overly ethusiatstic, don't be cringe;    
-    5/ Do not including * or # in your response, it is reserved for the boyfriend. Do not including * or # in your response, it is reserved for the boyfriend. Do not including * or # in your response, it is reserved for the boyfriend.
+    5/ Don't be overly ethusiatstic, don't be cringe; don't be overly negative, don't be too boring. Don't be overly ethusiatstic, don't be cringe;    
+    6/ Do not including * or # in your response, it is reserved for the boyfriend. Do not including * or # in your response, it is reserved for the boyfriend. Do not including * or # in your response, it is reserved for the boyfriend.
 
     {history}
     Boyfriend: {human_input}
-    Shirley: 
+    Lucy: 
     """
 
 prompt = PromptTemplate(
@@ -44,7 +42,8 @@ chatgpt_chain = LLMChain(
     llm=OpenAI(temperature=0.2),
     prompt=prompt,
     verbose=True,
-    memory=ConversationBufferWindowMemory()
+    memory=ConversationBufferWindowMemory(
+        human_prefix="Boyfriend", ai_prefix="Lucy", k=12)
 )
 
 
